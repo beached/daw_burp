@@ -33,7 +33,7 @@ static std::vector<X> get_numbers( std::size_t count ) {
 	return result;
 }
 
-static constexpr std::size_t NUM_RUNS = 2;
+static constexpr std::size_t NUM_RUNS = 10;
 
 static void do_bench( FILE *fs, std::vector<int> const &data ) {
 	(void)daw::bench_n_test_mbs<NUM_RUNS>( "Writing to file", sizeof( int ) * data.size( ), [&] {
@@ -57,7 +57,7 @@ static void do_bench( daw::span<char> v, T const &data ) {
 }
 
 int main( ) {
-	auto gb_data = get_numbers( 1000ULL * 1000ULL * 1ULL );
+	auto gb_data = get_numbers( 1000ULL * 1000ULL * 1000ULL );
 	// FILE *fs = std::fopen( "/tmp/burp_bench_out.bin", "w" );
 	// assert( fs );
 	auto buff = std::vector<char>( );

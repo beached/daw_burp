@@ -146,7 +146,11 @@ namespace daw::burp {
 					return true;
 				} else {
 					using element_t = DAW_TYPEOF( *std::begin( std::declval<T &>( ) ) );
-					return burp_impl::is_class_of_fundamental_types_without_padding_v<element_t>;
+					if constexpr( std::is_trivially_copyable_v<element_t> ) {
+						return burp_impl::is_class_of_fundamental_types_without_padding_v<element_t>;
+					} else {
+						return false;
+					}
 				}
 			}( );
 		} // namespace burp_impl
