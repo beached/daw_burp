@@ -90,13 +90,26 @@ namespace daw::burp {
 			return ptr;
 		}
 
+		template<typename Tp, std::size_t... Is>
+		DAW_CONSTEVAL std::size_t total_member_size( std::index_sequence<Is...> ) {
+			return ( sizeof( std::tuple_element_t<Is, Tp> ) + ... );
+		}
 	} // namespace burp_impl
 
 	template<typename T>
 	std::size_t write( T const &value, char *ptr ) {
 		using dto = generic_dto<T>;
-		auto last =
-		  burp_impl::write_impl( value, ptr, std::make_index_sequence<dto::member_count( )>{ } );
-		return static_cast<std::size_t>( last - ptr );
+		using tp_t = DAW_TYPEOF( dto::to_tuple( value ) );
+		if constexpr( burp_impl::total_member_size<tp_t>(
+		                std::make_index_sequence<dto::member_count( )>{ } ) == sizeof( T ) ) {
+
+			(void)memcpy( ptr, &value, sizeof( T ) );
+			return sizeof( T );
+		} else {
+
+			auto last =
+			  burp_impl::write_impl( value, ptr, std::make_index_sequence<dto::member_count( )>{ } );
+			return static_cast<std::size_t>( last - ptr );
+		}
 	}
 } // namespace daw::burp

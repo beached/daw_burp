@@ -50,10 +50,12 @@ int main( ) {
 	assert( ( std::get<1>( tp_x0 ) == 2 ) );
 	auto buff = std::string( 1024U, '\0' );
 	auto sz = daw::burp::write( x0, buff.data( ) );
-	char *first = buff.data( );
-	char *last = first += sz;
+	char const *first = buff.data( );
+	char const *last = first + sz;
+	std::cout << "-----\n";
 	while( first != last ) {
-		std::cout << (int)*first;
+		std::cout << (int)*first << '\n';
 		++first;
 	}
+	std::cout << "-----\n";
 }
