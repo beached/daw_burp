@@ -47,6 +47,7 @@ namespace daw::burp {
 				  std::tuple<remove_rvalue_ref_t<decltype( std::get<Is>( DAW_FWD( value ) ) )>...>;
 				return result_t{ std::get<Is>( DAW_FWD( value ) )... };
 			}
+
 		} // namespace burp_impl
 
 		template<typename T>
@@ -77,24 +78,41 @@ namespace daw::burp {
 			template<typename T>
 			inline constexpr bool has_generic_dto_v = daw::is_detected_v<has_generic_dto_test, T>;
 
+			template<typename T, std::size_t... Is>
+			DAW_CONSTEVAL bool
+			is_class_of_fundamental_types_without_padding_impl( std::index_sequence<Is...> ) {
+				using dto = generic_dto<T>;
+				using tp_t = DAW_TYPEOF( dto::to_tuple( std::declval<T &>( ) ) );
+				if constexpr( ( concepts::container_detect::is_fundamental_type_v<
+				                  std::tuple_element_t<Is, tp_t>> and
+				                ... ) and
+				              ( sizeof( std::tuple_element_t<Is, tp_t> ) + ... ) == sizeof( T ) ) {
+					return true;
+				}
+				return false;
+			}
+
+			template<typename T>
+			inline constexpr bool is_class_of_fundamental_types_without_padding_v = [] {
+				if constexpr( has_generic_dto_v<T> ) {
+					using dto = generic_dto<T>;
+					return is_class_of_fundamental_types_without_padding_impl<T>(
+					  std::make_index_sequence<dto::member_count( )>{ } );
+				}
+				return false;
+			}( );
+
 			template<typename Writable, typename T, std::size_t... Is>
 			std::size_t write_impl( Writable &writable, T const &value, std::index_sequence<Is...> ) {
 				using dto = generic_dto<T>;
 				using out_t = concepts::writable_output_trait<Writable>;
 				auto result = std::size_t{ 0 };
 				auto const tp = dto::to_tuple( value );
-				if constexpr( has_generic_dto_v<T> ) {
-					using dto = generic_dto<T>;
-					using tp_t = DAW_TYPEOF( dto::to_tuple( value ) );
-					if constexpr( ( concepts::container_detect::is_fundamental_type_v<
-					                  std::tuple_element_t<Is, tp_t>> and
-					                ... ) and
-					              ( sizeof( std::tuple_element_t<Is, tp_t> ) + ... ) == sizeof( T ) ) {
-						result += sizeof( T );
-						out_t::write( writable,
-						              daw::span( reinterpret_cast<char const *>( &value ), sizeof( T ) ) );
-						return result;
-					}
+				if constexpr( is_class_of_fundamental_types_without_padding_v<T> ) {
+					result += sizeof( T );
+					out_t::write( writable,
+					              daw::span( reinterpret_cast<char const *>( &value ), sizeof( T ) ) );
+					return result;
 				}
 				auto const do_write = [&]( auto const &v ) {
 					using current_type = DAW_TYPEOF( v );
@@ -133,7 +151,8 @@ namespace daw::burp {
 				                              value,
 				                              std::make_index_sequence<dto::member_count( )>{ } );
 			} else if constexpr( concepts::is_contiguous_container_v<T> and
-			                     concepts::container_detect::is_fundamental_value_type_v<T> ) {
+			                       concepts::container_detect::is_fundamental_value_type_v<T> or
+			                     burp_impl::is_class_of_fundamental_types_without_padding_v<T> ) {
 				// String like types
 				auto const sz = concepts::container_size( value );
 				out_t::write( writable, daw::span( reinterpret_cast<char const *>( &sz ), sizeof( sz ) ) );
