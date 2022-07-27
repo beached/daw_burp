@@ -83,7 +83,8 @@ namespace daw::burp {
 			is_class_of_fundamental_types_without_padding_impl( std::index_sequence<Is...> ) {
 				using dto = generic_dto<T>;
 				using tp_t = DAW_TYPEOF( dto::to_tuple( std::declval<T &>( ) ) );
-				if constexpr( ( concepts::container_detect::is_fundamental_type_v<
+				if constexpr( ( sizeof( T ) == alignof( T ) ) and
+				              ( concepts::container_detect::is_fundamental_type_v<
 				                  std::tuple_element_t<Is, tp_t>> and
 				                ... ) and
 				              ( sizeof( std::tuple_element_t<Is, tp_t> ) + ... ) == sizeof( T ) ) {
@@ -138,6 +139,22 @@ namespace daw::burp {
 			DAW_CONSTEVAL std::size_t total_member_size( std::index_sequence<Is...> ) {
 				return ( sizeof( std::tuple_element_t<Is, Tp> ) + ... );
 			}
+
+			template<typename T>
+			inline constexpr bool is_contiguous_array_of_fundamental_like_types_v = [] {
+				if constexpr( not concepts::is_contiguous_container_v<T> ) {
+					return false;
+				} else if constexpr( concepts::container_detect::is_fundamental_value_type_v<T> ) {
+					return true;
+				} else {
+					using element_t = DAW_TYPEOF( *std::begin( std::declval<T &>( ) ) );
+					if constexpr( burp_impl::is_class_of_fundamental_types_without_padding_v<element_t> ) {
+						return true;
+					} else {
+						return false;
+					}
+				}
+			}( );
 		} // namespace burp_impl
 
 		template<typename Writable, typename T>
@@ -150,9 +167,7 @@ namespace daw::burp {
 				return burp_impl::write_impl( writable,
 				                              value,
 				                              std::make_index_sequence<dto::member_count( )>{ } );
-			} else if constexpr( concepts::is_contiguous_container_v<T> and
-			                       concepts::container_detect::is_fundamental_value_type_v<T> or
-			                     burp_impl::is_class_of_fundamental_types_without_padding_v<T> ) {
+			} else if constexpr( burp_impl::is_contiguous_array_of_fundamental_like_types_v<T> ) {
 				// String like types
 				auto const sz = concepts::container_size( value );
 				out_t::write( writable, daw::span( reinterpret_cast<char const *>( &sz ), sizeof( sz ) ) );

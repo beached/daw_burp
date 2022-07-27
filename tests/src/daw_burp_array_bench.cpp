@@ -46,12 +46,14 @@ static void do_bench( FILE *fs, std::vector<int> const &data ) {
 
 template<typename T>
 static void do_bench( daw::span<char> v, T const &data ) {
-	(void)daw::bench_n_test_mbs<NUM_RUNS>( "Writing to buff", sizeof( int ) * data.size( ), [&] {
-		daw::do_not_optimize( data );
-		daw::do_not_optimize( data.data( ) );
-		auto s = v;
-		daw::burp::write( s, data );
-	} );
+	(void)daw::bench_n_test_mbs<NUM_RUNS>( "Writing to buff",
+	                                       sizeof( typename T::value_type ) * data.size( ),
+	                                       [&] {
+		                                       daw::do_not_optimize( data );
+		                                       daw::do_not_optimize( data.data( ) );
+		                                       auto s = v;
+		                                       daw::burp::write( s, data );
+	                                       } );
 }
 
 int main( ) {
