@@ -89,8 +89,8 @@ namespace daw::burp {
 					              concepts::is_container_v<current_type> ) {
 						result += daw::burp::write( writable, v );
 					} else {
-						static_assert( std::is_trivially_copyable_v<current_type>,
-						               "Type is not trivially copyable and is not mapped" );
+						static_assert( concepts::container_detect::is_fundamental_type_v<current_type>,
+						               "Type is not a fundamental type or is not mapped" );
 						result += sizeof( current_type );
 						out_t::write(
 						  writable,
@@ -139,7 +139,7 @@ namespace daw::burp {
 					result += burp::write( writable, element );
 				}
 				return result;
-			} else if constexpr( std::is_trivially_copyable_v<T> ) {
+			} else if constexpr( concepts::container_detect::is_fundamental_type_v<T> ) {
 				out_t::write( writable,
 				              daw::span( reinterpret_cast<char const *>( &value ), sizeof( T ) ) );
 				return sizeof( T );
