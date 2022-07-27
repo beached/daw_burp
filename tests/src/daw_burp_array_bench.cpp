@@ -57,7 +57,7 @@ static void do_bench( daw::span<char> v, T const &data ) {
 }
 
 int main( ) {
-	auto gb_data = get_numbers( 1000ULL * 1000ULL * 1024ULL );
+	auto gb_data = get_numbers( 1000ULL * 1000ULL * 1ULL );
 	// FILE *fs = std::fopen( "/tmp/burp_bench_out.bin", "w" );
 	// assert( fs );
 	auto buff = std::vector<char>( );

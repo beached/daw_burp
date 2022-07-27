@@ -83,14 +83,12 @@ namespace daw::burp {
 			is_class_of_fundamental_types_without_padding_impl( std::index_sequence<Is...> ) {
 				using dto = generic_dto<T>;
 				using tp_t = DAW_TYPEOF( dto::to_tuple( std::declval<T &>( ) ) );
-				if constexpr( ( sizeof( T ) == alignof( T ) ) and
-				              ( concepts::container_detect::is_fundamental_type_v<
-				                  std::tuple_element_t<Is, tp_t>> and
-				                ... ) and
-				              ( sizeof( std::tuple_element_t<Is, tp_t> ) + ... ) == sizeof( T ) ) {
-					return true;
-				}
-				return false;
+				return ( sizeof( T ) == alignof( T ) ) and
+				       ( concepts::container_detect::is_fundamental_type_v<
+				           daw::remove_cvref_t<std::tuple_element_t<Is, tp_t>>> and
+				         ... ) and
+				       ( ( sizeof( daw::remove_cvref_t<std::tuple_element_t<Is, tp_t>> ) + ... ) ==
+				         sizeof( T ) );
 			}
 
 			template<typename T>
@@ -148,11 +146,7 @@ namespace daw::burp {
 					return true;
 				} else {
 					using element_t = DAW_TYPEOF( *std::begin( std::declval<T &>( ) ) );
-					if constexpr( burp_impl::is_class_of_fundamental_types_without_padding_v<element_t> ) {
-						return true;
-					} else {
-						return false;
-					}
+					return burp_impl::is_class_of_fundamental_types_without_padding_v<element_t>;
 				}
 			}( );
 		} // namespace burp_impl
