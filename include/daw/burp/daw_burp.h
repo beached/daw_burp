@@ -10,6 +10,7 @@
 
 #include "impl/version.h"
 
+#include "concepts/daw_container_traits.h"
 #include "concepts/daw_writable_output.h"
 
 #include <daw/cpp_17.h>
@@ -66,7 +67,7 @@ namespace daw::burp {
 			}
 		};
 
-		template<typename T, typename Writable>
+		template<typename Writable, typename T>
 		std::size_t write( Writable &write_out, T const &value );
 
 		namespace burp_impl {
@@ -76,7 +77,7 @@ namespace daw::burp {
 			template<typename T>
 			inline constexpr bool has_generic_dto_v = daw::is_detected_v<has_generic_dto_test, T>;
 
-			template<typename T, typename Writable, std::size_t... Is>
+			template<typename Writable, typename T, std::size_t... Is>
 			std::size_t write_impl( Writable &writable, T const &value, std::index_sequence<Is...> ) {
 				using dto = generic_dto<T>;
 				using out_t = concepts::writable_output_trait<Writable>;
@@ -84,7 +85,8 @@ namespace daw::burp {
 				auto const tp = dto::to_tuple( value );
 				auto const do_write = [&]( auto const &v ) {
 					using current_type = DAW_TYPEOF( v );
-					if constexpr( has_generic_dto_v<current_type> ) {
+					if constexpr( has_generic_dto_v<current_type> or
+					              concepts::is_container_v<current_type> ) {
 						result += daw::burp::write( writable, v );
 					} else {
 						static_assert( std::is_trivially_copyable_v<current_type>,
@@ -107,14 +109,41 @@ namespace daw::burp {
 			}
 		} // namespace burp_impl
 
-		template<typename T, typename Writable>
+		template<typename Writable, typename T>
 		std::size_t write( Writable &writable, T const &value ) {
 			static_assert( concepts::is_writable_output_type_v<Writable>,
 			               "Writable does not fulfill the writable output concept." );
-			using dto = generic_dto<T>;
-			return burp_impl::write_impl( writable,
-			                              value,
-			                              std::make_index_sequence<dto::member_count( )>{ } );
+			using out_t = concepts::writable_output_trait<Writable>;
+			if constexpr( burp_impl::has_generic_dto_v<T> ) {
+				using dto = generic_dto<T>;
+				return burp_impl::write_impl( writable,
+				                              value,
+				                              std::make_index_sequence<dto::member_count( )>{ } );
+			} else if constexpr( concepts::is_contiguous_container_v<T> and
+			                     concepts::container_detect::is_fundamental_value_type_v<T> ) {
+				// String like types
+				auto const sz = concepts::container_size( value );
+				out_t::write( writable, daw::span( reinterpret_cast<char const *>( &sz ), sizeof( sz ) ) );
+				auto const count = std::size( value );
+				out_t::write(
+				  writable,
+				  daw::span( reinterpret_cast<char const *>( std::data( value ) ),
+				             count * concepts::container_detect::container_value_type<T>::size ) );
+				return sizeof( sz ) + ( sizeof( T ) * count );
+			} else if constexpr( concepts::is_container_v<T> ) {
+				auto const sz = concepts::container_size( value );
+				out_t::write( writable, daw::span( reinterpret_cast<char const *>( &sz ), sizeof( sz ) ) );
+				auto result = sizeof( sz );
+				using value_type = typename T::value_type;
+				for( auto const &element : value ) {
+					result += burp::write( writable, element );
+				}
+				return result;
+			} else if constexpr( std::is_trivially_copyable_v<T> ) {
+				out_t::write( writable,
+				              daw::span( reinterpret_cast<char const *>( &value ), sizeof( T ) ) );
+				return sizeof( T );
+			}
 		}
 	} // namespace DAW_BURP_VER
 } // namespace daw::burp

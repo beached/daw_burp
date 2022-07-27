@@ -45,19 +45,29 @@ BOOST_DESCRIBE_STRUCT( Foo, ( ), ( m0, m1, m2 ) );
 int main( ) {
 	auto x0 = X{ 1, 2 };
 	auto tp_x0 = daw::burp::generic_dto<X>::to_tuple( x0 );
-	assert( ( std::tuple_size_v<decltype( tp_x0 )> == 2 ) );
+	static_assert( std::tuple_size_v<decltype( tp_x0 )> == 2 );
 	assert( ( std::get<0>( tp_x0 ) == 1 ) );
 	assert( ( std::get<1>( tp_x0 ) == 2 ) );
 	auto buff = std::string( );
-	buff.reserve( sizeof( X ) + 1 );
 	auto sz = daw::burp::write( buff, x0 );
-	char const *first = buff.data( );
-	char const *last = first + sz;
 	assert( buff.size( ) == sz );
 	std::cout << "-----\n";
-	while( first != last ) {
-		std::cout << (int)*first << '\n';
-		++first;
+	for( char c : buff ) {
+		std::cout << (int)c << '\n';
+	}
+	std::cout << "-----\n";
+	buff.clear( );
+	auto y0 = Y{ x0, "Hello World!!" };
+	auto tp_y0 = daw::burp::generic_dto<Y>::to_tuple( y0 );
+	static_assert( std::tuple_size_v<decltype( tp_y0 )> == 2 );
+	auto const &tp_y0_x = std::get<0>( tp_y0 );
+	assert( tp_y0_x.m1 == 1 );
+	assert( tp_y0_x.m2 == 2 );
+	assert( ( std::get<1>( tp_y0 ) == "Hello World!!" ) );
+	sz = daw::burp::write( buff, y0 );
+	std::cout << "-----\n";
+	for( char c : buff ) {
+		std::cout << (int)c << '\n';
 	}
 	std::cout << "-----\n";
 }

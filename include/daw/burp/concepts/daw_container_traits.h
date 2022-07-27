@@ -37,6 +37,10 @@ namespace daw::burp {
 			/// @brief Is the type deduced or specialized as a container
 			template<typename T>
 			inline constexpr bool is_container_v = container_traits<T>::value;
+
+			template<typename T>
+			inline constexpr bool is_contiguous_container_v =
+			  daw::is_detected_v<container_detect::is_contiguous_container_test, T>;
 		} // namespace concepts
 	}   // namespace DAW_BURP_VER
 } // namespace daw::burp
