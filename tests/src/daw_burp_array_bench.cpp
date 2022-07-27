@@ -19,8 +19,16 @@
 #include <numeric>
 #include <vector>
 
-static std::vector<int> get_numbers( std::size_t count ) {
-	auto result = std::vector<int>( count );
+struct X {
+	int x;
+	X( ) = default;
+	constexpr X( int i ) noexcept
+	  : x( i ) {}
+};
+BOOST_DESCRIBE_STRUCT( X, ( ), ( x ) );
+
+static std::vector<X> get_numbers( std::size_t count ) {
+	auto result = std::vector<X>( count );
 	std::iota( std::data( result ), daw::data_end( result ), 1 );
 	return result;
 }
@@ -36,7 +44,8 @@ static void do_bench( FILE *fs, std::vector<int> const &data ) {
 	} );
 }
 
-static void do_bench( daw::span<char> v, std::vector<int> const &data ) {
+template<typename T>
+static void do_bench( daw::span<char> v, T const &data ) {
 	(void)daw::bench_n_test_mbs<NUM_RUNS>( "Writing to buff", sizeof( int ) * data.size( ), [&] {
 		daw::do_not_optimize( data );
 		daw::do_not_optimize( data.data( ) );

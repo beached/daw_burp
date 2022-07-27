@@ -83,6 +83,19 @@ namespace daw::burp {
 				using out_t = concepts::writable_output_trait<Writable>;
 				auto result = std::size_t{ 0 };
 				auto const tp = dto::to_tuple( value );
+				if constexpr( has_generic_dto_v<T> ) {
+					using dto = generic_dto<T>;
+					using tp_t = DAW_TYPEOF( dto::to_tuple( value ) );
+					if constexpr( ( concepts::container_detect::is_fundamental_type_v<
+					                  std::tuple_element_t<Is, tp_t>> and
+					                ... ) and
+					              ( sizeof( std::tuple_element_t<Is, tp_t> ) + ... ) == sizeof( T ) ) {
+						result += sizeof( T );
+						out_t::write( writable,
+						              daw::span( reinterpret_cast<char const *>( &value ), sizeof( T ) ) );
+						return result;
+					}
+				}
 				auto const do_write = [&]( auto const &v ) {
 					using current_type = DAW_TYPEOF( v );
 					if constexpr( has_generic_dto_v<current_type> or
@@ -139,7 +152,9 @@ namespace daw::burp {
 					result += burp::write( writable, element );
 				}
 				return result;
-			} else if constexpr( concepts::container_detect::is_fundamental_type_v<T> ) {
+			} else {
+				static_assert( concepts::container_detect::is_fundamental_type_v<T>,
+				               "Could not find mapping for type and it isn't a fundamental type" );
 				out_t::write( writable,
 				              daw::span( reinterpret_cast<char const *>( &value ), sizeof( T ) ) );
 				return sizeof( T );
