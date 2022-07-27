@@ -48,10 +48,12 @@ int main( ) {
 	assert( ( std::tuple_size_v<decltype( tp_x0 )> == 2 ) );
 	assert( ( std::get<0>( tp_x0 ) == 1 ) );
 	assert( ( std::get<1>( tp_x0 ) == 2 ) );
-	auto buff = std::string( 1024U, '\0' );
-	auto sz = daw::burp::write( x0, buff.data( ) );
+	auto buff = std::string( );
+	buff.reserve( sizeof( X ) + 1 );
+	auto sz = daw::burp::write( buff, x0 );
 	char const *first = buff.data( );
 	char const *last = first + sz;
+	assert( buff.size( ) == sz );
 	std::cout << "-----\n";
 	while( first != last ) {
 		std::cout << (int)*first << '\n';

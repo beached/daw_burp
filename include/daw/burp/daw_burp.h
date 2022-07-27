@@ -10,8 +10,11 @@
 
 #include "impl/version.h"
 
+#include "concepts/daw_writable_output.h"
+
 #include <daw/cpp_17.h>
 #include <daw/daw_consteval.h>
+#include <daw/daw_is_constant_evaluated.h>
 #include <daw/daw_move.h>
 #include <daw/daw_traits.h>
 
@@ -63,8 +66,8 @@ namespace daw::burp {
 			}
 		};
 
-		template<typename T>
-		std::size_t write( T const &value, char *ptr );
+		template<typename T, typename Writable>
+		std::size_t write( Writable &write_out, T const &value );
 
 		namespace burp_impl {
 			template<typename T>
@@ -73,25 +76,29 @@ namespace daw::burp {
 			template<typename T>
 			inline constexpr bool has_generic_dto_v = daw::is_detected_v<has_generic_dto_test, T>;
 
-			template<typename T, std::size_t... Is>
-			char *write_impl( T const &value, char *ptr, std::index_sequence<Is...> ) {
+			template<typename T, typename Writable, std::size_t... Is>
+			std::size_t write_impl( Writable &writable, T const &value, std::index_sequence<Is...> ) {
 				using dto = generic_dto<T>;
+				using out_t = concepts::writable_output_trait<Writable>;
+				auto result = std::size_t{ 0 };
 				auto const tp = dto::to_tuple( value );
 				auto const do_write = [&]( auto const &v ) {
 					using current_type = DAW_TYPEOF( v );
 					if constexpr( has_generic_dto_v<current_type> ) {
-						ptr += daw::burp::write( v, ptr );
+						result += daw::burp::write( writable, v );
 					} else {
 						static_assert( std::is_trivially_copyable_v<current_type>,
 						               "Type is not trivially copyable and is not mapped" );
-						(void)memcpy( ptr, &v, sizeof( v ) );
-						ptr += sizeof( v );
+						result += sizeof( current_type );
+						out_t::write(
+						  writable,
+						  daw::span( reinterpret_cast<char const *>( &v ), sizeof( current_type ) ) );
 					}
 					return true;
 				};
 				bool expander[]{ do_write( std::get<Is>( tp ) )... };
 				(void)expander;
-				return ptr;
+				return result;
 			}
 
 			template<typename Tp, std::size_t... Is>
@@ -100,21 +107,14 @@ namespace daw::burp {
 			}
 		} // namespace burp_impl
 
-		template<typename T>
-		std::size_t write( T const &value, char *ptr ) {
+		template<typename T, typename Writable>
+		std::size_t write( Writable &writable, T const &value ) {
+			static_assert( concepts::is_writable_output_type_v<Writable>,
+			               "Writable does not fulfill the writable output concept." );
 			using dto = generic_dto<T>;
-			using tp_t = DAW_TYPEOF( dto::to_tuple( value ) );
-			if constexpr( burp_impl::total_member_size<tp_t>(
-			                std::make_index_sequence<dto::member_count( )>{ } ) == sizeof( T ) ) {
-
-				(void)memcpy( ptr, &value, sizeof( T ) );
-				return sizeof( T );
-			} else {
-
-				auto last =
-				  burp_impl::write_impl( value, ptr, std::make_index_sequence<dto::member_count( )>{ } );
-				return static_cast<std::size_t>( last - ptr );
-			}
+			return burp_impl::write_impl( writable,
+			                              value,
+			                              std::make_index_sequence<dto::member_count( )>{ } );
 		}
 	} // namespace DAW_BURP_VER
 } // namespace daw::burp

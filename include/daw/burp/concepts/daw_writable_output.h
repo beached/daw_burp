@@ -8,15 +8,16 @@
 
 #pragma once
 
-#include "../impl/version.h"
 #include "../impl/errors.h"
+#include "../impl/version.h"
 
 #include "daw_writable_output_fwd.h"
 
 #include <daw/daw_algorithm.h>
 #include <daw/daw_character_traits.h>
 #include <daw/daw_consteval.h>
-#include <daw/daw_string_view.h>
+#include <daw/daw_likely.h>
+#include <daw/daw_span.h>
 
 #include <cstdio>
 #include <iostream>
@@ -26,8 +27,8 @@ namespace daw::burp {
 	inline namespace DAW_BURP_VER {
 		namespace concepts {
 			namespace writeable_output_details {
-				template<typename T>
-				constexpr T *copy_to_buffer( T *buff, daw::string_view source ) {
+				template<typename T, typename B>
+				constexpr T *copy_to_buffer( T *buff, daw::span<B const> source ) {
 #if defined( DAW_IS_CONSTANT_EVALUATED )
 					if( DAW_IS_CONSTANT_EVALUATED( ) ) {
 #endif
@@ -70,9 +71,9 @@ namespace daw::burp {
 			  std::enable_if_t<( writeable_output_details::is_char_sized_character_v<T> or
 			                     writeable_output_details::is_byte_type_v<T> )>> : std::true_type {
 
-				template<typename... StringViews>
-				static constexpr void write( T *&ptr, StringViews... svs ) {
-					static_assert( sizeof...( StringViews ) > 0 );
+				template<typename... ContiguousBytes>
+				static constexpr void write( T *&ptr, ContiguousBytes... blobs ) {
+					static_assert( sizeof...( ContiguousBytes ) > 0 );
 					daw_burp_ensure( ptr, daw::burp::ErrorReason::OutputError );
 					constexpr auto writer = []( T *&p, auto sv ) {
 						if( sv.empty( ) ) {
@@ -81,7 +82,7 @@ namespace daw::burp {
 						p = writeable_output_details::copy_to_buffer( p, sv );
 						return 0;
 					};
-					(void)( writer( ptr, svs ) | ... );
+					(void)( writer( ptr, blobs ) | ... );
 				}
 
 				static constexpr void put( T *&ptr, char c ) {
@@ -96,9 +97,9 @@ namespace daw::burp {
 			struct writable_output_trait<T, std::enable_if_t<std::is_base_of_v<std::ostream, T>>> :
 			  std::true_type {
 
-				template<typename... StringViews>
-				static inline void write( std::ostream &os, StringViews... svs ) {
-					static_assert( sizeof...( StringViews ) > 0 );
+				template<typename... ContiguousBytes>
+				static inline void write( std::ostream &os, ContiguousBytes... blobs ) {
+					static_assert( sizeof...( ContiguousBytes ) > 0 );
 					constexpr auto writer = []( std::ostream &o, auto sv ) {
 						if( sv.empty( ) ) {
 							return 0;
@@ -107,7 +108,7 @@ namespace daw::burp {
 						daw_burp_ensure( static_cast<bool>( o ), daw::burp::ErrorReason::OutputError );
 						return 0;
 					};
-					(void)( writer( os, svs ) | ... );
+					(void)( writer( os, blobs ) | ... );
 				}
 
 				static inline void put( std::ostream &os, char c ) {
@@ -120,9 +121,9 @@ namespace daw::burp {
 			template<>
 			struct writable_output_trait<std::FILE *> : std::true_type {
 
-				template<typename... StringViews>
-				static inline void write( std::FILE *fp, StringViews... svs ) {
-					static_assert( sizeof...( StringViews ) > 0 );
+				template<typename... ContiguousBytes>
+				static inline void write( std::FILE *fp, ContiguousBytes... blobs ) {
+					static_assert( sizeof...( ContiguousBytes ) > 0 );
 					constexpr auto writer = []( std::FILE *f, auto sv ) {
 						if( sv.empty( ) ) {
 							return 0;
@@ -131,7 +132,7 @@ namespace daw::burp {
 						daw_burp_ensure( ret == sv.size( ), daw::burp::ErrorReason::OutputError );
 						return 0;
 					};
-					(void)( writer( fp, svs ) | ... );
+					(void)( writer( fp, blobs ) | ... );
 				}
 
 				static inline void put( std::FILE *f, char c ) {
@@ -163,10 +164,10 @@ namespace daw::burp {
 			  std::true_type {
 				using CharT = typename T::value_type;
 
-				template<typename... StringViews>
-				static constexpr void write( T &out, StringViews... svs ) {
-					static_assert( sizeof...( StringViews ) > 0 );
-					daw_burp_ensure( out.size( ) >= ( std::size( svs ) + ... ),
+				template<typename... ContiguousBytes>
+				static constexpr void write( T &out, ContiguousBytes... blobs ) {
+					static_assert( sizeof...( ContiguousBytes ) > 0 );
+					daw_burp_ensure( out.size( ) >= ( std::size( blobs ) + ... ),
 					                 daw::burp::ErrorReason::OutputError );
 					constexpr auto writer = []( T &s, auto sv ) {
 						if( sv.empty( ) ) {
@@ -176,7 +177,7 @@ namespace daw::burp {
 						s = s.subspan( sv.size( ) );
 						return 0;
 					};
-					(void)( writer( out, svs ) | ... );
+					(void)( writer( out, blobs ) | ... );
 				}
 
 				static constexpr void put( T &out, char c ) {
@@ -216,11 +217,11 @@ namespace daw::burp {
 			    typename Container::value_type>>> : std::true_type {
 				using CharT = typename Container::value_type;
 
-				template<typename... StringViews>
-				static inline void write( Container &out, StringViews... svs ) {
-					static_assert( sizeof...( StringViews ) > 0 );
+				template<typename... ContiguousBytes>
+				static inline void write( Container &out, ContiguousBytes... blobs ) {
+					static_assert( sizeof...( ContiguousBytes ) > 0 );
 					auto const start_pos = out.size( );
-					auto const total_size = ( std::size( svs ) + ... );
+					auto const total_size = ( std::size( blobs ) + ... );
 					out.resize( start_pos + total_size );
 
 					constexpr auto writer = []( CharT *&p, auto sv ) {
@@ -231,7 +232,7 @@ namespace daw::burp {
 						return 0;
 					};
 					auto *ptr = out.data( ) + start_pos;
-					(void)( writer( ptr, svs ) | ... );
+					(void)( writer( ptr, blobs ) | ... );
 				}
 
 				static inline void put( Container &out, char c ) {
@@ -256,18 +257,17 @@ namespace daw::burp {
 			  std::enable_if_t<writeable_output_details::is_writable_output_iterator_v<T>>> :
 			  std::true_type {
 
-				template<typename... StringViews>
-				static constexpr void write( T &it, StringViews... svs ) {
-					static_assert( sizeof...( StringViews ) > 0 );
-
-					constexpr auto writer = []( T &i, auto sv ) {
-						for( char c : daw::string_view( sv ) ) {
-							*i = c;
+				template<typename... ContiguousBytes>
+				static constexpr void write( T &it, ContiguousBytes... blobs ) {
+					static_assert( sizeof...( ContiguousBytes ) > 0 );
+					constexpr auto writer = []( T &i, auto b ) {
+						for( auto c : daw::span( b ) ) {
+							*i = static_cast<char>( c );
 							++i;
 						}
 						return 0;
 					};
-					(void)( writer( it, svs ) | ... );
+					(void)( writer( it, blobs ) | ... );
 				}
 
 				static constexpr void put( T &it, char c ) {
