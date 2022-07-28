@@ -16,5 +16,11 @@ FetchContent_Declare(
         GIT_REPOSITORY https://github.com/beached/header_libraries.git
         GIT_TAG master
 )
-FetchContent_MakeAvailable( daw_header_libraries )
+
+FetchContent_Declare(
+        daw_libtemp_file
+        GIT_REPOSITORY https://github.com/beached/libtemp_file.git
+        GIT_TAG master
+)
+FetchContent_MakeAvailable( daw_header_libraries daw_libtemp_file )
 

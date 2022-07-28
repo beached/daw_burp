@@ -23,6 +23,11 @@
 #include <iostream>
 #include <string>
 
+#if __has_include( <unistd.h> )
+#include <unistd.h>
+#define DAW_HAS_UNISTD
+#endif
+
 namespace daw::burp {
 	inline namespace DAW_BURP_VER {
 		namespace concepts {
@@ -141,6 +146,42 @@ namespace daw::burp {
 				}
 			};
 
+#if defined( DAW_HAS_UNISTD )
+			struct fd_t {
+				int value;
+
+				constexpr fd_t( int fd ) noexcept
+				  : value( fd ) {}
+			};
+
+			template<>
+			struct writable_output_trait<fd_t> : std::true_type {
+				static constexpr std::size_t max_chunk_size = 32'768ULL;
+
+				template<typename... ContiguousBytes>
+				static inline void write( fd_t fd, ContiguousBytes... blobs ) {
+					static_assert( sizeof...( ContiguousBytes ) > 0 );
+					constexpr auto writer = []( fd_t f, auto blob ) {
+						auto const *b_ptr = std::data( blob );
+						std::size_t b_sz = std::size( blob );
+						while( b_sz > 0 ) {
+							auto const chunk = b_sz <= max_chunk_size ? b_sz : max_chunk_size;
+							auto ret = ::write( f.value, b_ptr, chunk );
+							daw_burp_ensure( ret == chunk, daw::burp::ErrorReason::OutputError );
+							b_sz -= chunk;
+							b_ptr += chunk;
+						}
+						return 0;
+					};
+					(void)( writer( fd, blobs ) | ... );
+				}
+
+				static inline void put( fd_t fd, char c ) {
+					return write( fd, daw::span<char>( &c, 1 ) );
+				}
+			};
+#endif
+
 			namespace writeable_output_details {
 				template<typename T, typename CharT>
 				using span_like_range_test =
@@ -149,10 +190,10 @@ namespace daw::burp {
 				            (void)( std::declval<bool &>( ) = std::declval<T &>( ).empty( ) ),
 				            (void)( *std::declval<T &>( ).data( ) = std::declval<CharT>( ) ) );
 				template<typename T, typename CharT>
-				inline constexpr bool
-				  is_span_like_range_v = daw::is_detected_v<span_like_range_test, T, CharT> and
-				                         ( writeable_output_details::is_char_sized_character_v<CharT> or
-				                           writeable_output_details::is_byte_type_v<CharT> );
+				inline constexpr bool is_span_like_range_v =
+				  daw::is_detected_v<span_like_range_test, T, CharT> and
+				  ( writeable_output_details::is_char_sized_character_v<CharT> or
+				    writeable_output_details::is_byte_type_v<CharT> );
 			} // namespace writeable_output_details
 
 			/// @brief Specialization for a span to a buffer with a fixed size

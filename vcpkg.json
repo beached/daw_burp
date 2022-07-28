@@ -3,9 +3,11 @@
   "name": "daw-burp",
   "version": "0.0.1",
   "dependencies": [
-    "boost-system",
     "boost-describe",
-    "boost-mp11"
+    "boost-filesystem",
+    "boost-iostreams",
+    "boost-mp11",
+    "boost-system"
   ]
 }
 

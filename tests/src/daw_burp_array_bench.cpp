@@ -10,10 +10,13 @@
 #include <daw/burp/daw_burp_describe.h>
 
 #include <daw/daw_benchmark.h>
+#include <daw/daw_memory_mapped_file.h>
+#include <daw/temp_file.h>
 
 #include <boost/describe.hpp>
 #include <cassert>
 #include <cstdio>
+#include <iostream>
 #include <limits>
 #include <memory>
 #include <numeric>
@@ -35,13 +38,17 @@ static std::vector<X> get_numbers( std::size_t count ) {
 
 static constexpr std::size_t NUM_RUNS = 10;
 
-static void do_bench( FILE *fs, std::vector<int> const &data ) {
-	(void)daw::bench_n_test_mbs<NUM_RUNS>( "Writing to file", sizeof( int ) * data.size( ), [&] {
-		daw::do_not_optimize( data );
-		daw::do_not_optimize( data.data( ) );
-		std::rewind( fs );
-		daw::burp::write( fs, data );
-	} );
+template<typename T>
+static void do_bench( daw::burp::concepts::fd_t fd, T const &data ) {
+	(void)daw::bench_n_test_mbs<NUM_RUNS>( "Writing to file",
+	                                       sizeof( typename T::value_type ) * data.size( ),
+	                                       [&] {
+		                                       daw::do_not_optimize( data );
+		                                       daw::do_not_optimize( data.data( ) );
+		                                       ::lseek( fd.value, 0, SEEK_SET );
+		                                       daw::burp::write( fd, data );
+		                                       ::fsync( fd.value );
+	                                       } );
 }
 
 template<typename T>
@@ -60,8 +67,14 @@ int main( ) {
 	auto gb_data = get_numbers( 1000ULL * 1000ULL * 1000ULL );
 	// FILE *fs = std::fopen( "/tmp/burp_bench_out.bin", "w" );
 	// assert( fs );
-	auto buff = std::vector<char>( );
-	buff.resize( gb_data.size( ) * sizeof( typename decltype( gb_data )::value_type ) * 2 );
+	// auto buff = std::vector<char>( );
+	// buff.resize( gb_data.size( ) * sizeof( typename decltype( gb_data )::value_type ) * 2 );
+	auto tmp = daw::unique_temp_file{ };
+	std::cout << "tmp file: " << tmp.native( ) << '\n';
+	daw::burp::concepts::fd_t fd = tmp.secure_create_fd( );
+	do_bench( fd, gb_data );
+	::close( fd.value );
+	auto buff = daw::filesystem::memory_mapped_file_t<char>( tmp.native( ) );
 	do_bench( daw::span<char>( buff ), gb_data );
 	// std::fclose( fs );
 }
