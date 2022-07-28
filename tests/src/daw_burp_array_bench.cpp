@@ -70,7 +70,7 @@ int main( ) {
 	auto gb_data = get_numbers( 1000ULL * 1000ULL * 1000ULL );
 	auto vec = std::vector<char>{ };
 	std::cout << "Buffer\n";
-	do_bench( daw::span<char>( vec.data( ), vec.size( ) ), gb_data );
+	do_bench( vec, gb_data );
 	std::cout << "File via fd\n";
 	auto tmp = daw::unique_temp_file{ };
 	auto fname = tmp.native( );
