@@ -6,10 +6,11 @@
 // Official repository: https://github.com/beached/daw_burp
 //
 
+#include "daw_burp_benchmark.h"
+
 #include <daw/burp/daw_burp.h>
 #include <daw/burp/daw_burp_describe.h>
 
-#include <daw/daw_benchmark.h>
 #include <daw/daw_memory_mapped_file.h>
 #include <daw/temp_file.h>
 
@@ -40,8 +41,9 @@ static constexpr std::size_t NUM_RUNS = 10;
 
 template<typename T>
 static void do_bench( daw::burp::concepts::fd_t fd, T const &data ) {
-	(void)daw::bench_n_test_mbs<NUM_RUNS>( "Writing to file",
+	(void)daw::burp::benchmark::benchmark( NUM_RUNS,
 	                                       sizeof( typename T::value_type ) * data.size( ),
+	                                       "Writing to file",
 	                                       [&] {
 		                                       daw::do_not_optimize( data );
 		                                       daw::do_not_optimize( data.data( ) );
@@ -53,8 +55,9 @@ static void do_bench( daw::burp::concepts::fd_t fd, T const &data ) {
 
 template<typename T>
 static void do_bench( daw::span<char> v, T const &data ) {
-	(void)daw::bench_n_test_mbs<NUM_RUNS>( "Writing to buff",
+	(void)daw::burp::benchmark::benchmark( NUM_RUNS,
 	                                       sizeof( typename T::value_type ) * data.size( ),
+	                                       "Writing to buff",
 	                                       [&] {
 		                                       daw::do_not_optimize( data );
 		                                       daw::do_not_optimize( data.data( ) );
@@ -65,16 +68,14 @@ static void do_bench( daw::span<char> v, T const &data ) {
 
 int main( ) {
 	auto gb_data = get_numbers( 1000ULL * 1000ULL * 1000ULL );
-	// FILE *fs = std::fopen( "/tmp/burp_bench_out.bin", "w" );
-	// assert( fs );
-	// auto buff = std::vector<char>( );
-	// buff.resize( gb_data.size( ) * sizeof( typename decltype( gb_data )::value_type ) * 2 );
 	auto tmp = daw::unique_temp_file{ };
-	std::cout << "tmp file: " << tmp.native( ) << '\n';
+	auto fname = tmp.native( );
+	std::cout << "tmp file: " << fname << '\n';
 	daw::burp::concepts::fd_t fd = tmp.secure_create_fd( );
 	do_bench( fd, gb_data );
 	::close( fd.value );
-	auto buff = daw::filesystem::memory_mapped_file_t<char>( tmp.native( ) );
-	do_bench( daw::span<char>( buff ), gb_data );
-	// std::fclose( fs );
+	auto buff =
+	  daw::filesystem::memory_mapped_file_t<char>( fname, daw::filesystem::open_mode::read_write );
+	do_bench( daw::span<char>( buff.data( ), buff.size( ) ), gb_data );
+	std::cout << "done\n";
 }

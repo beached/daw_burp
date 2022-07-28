@@ -68,10 +68,10 @@ namespace daw::burp {
 			}
 		};
 
-		template<typename Writable, typename T>
-		std::size_t write( Writable &write_out, T const &value );
-
 		namespace burp_impl {
+			template<typename Writable, typename T>
+			std::size_t write_impl1( Writable &write_out, T const &value );
+
 			template<typename T>
 			using has_generic_dto_test = decltype( generic_dto<T>{ } );
 
@@ -108,7 +108,7 @@ namespace daw::burp {
 			}( );
 
 			template<typename Writable, typename T, std::size_t... Is>
-			std::size_t write_impl( Writable &writable, T const &value, std::index_sequence<Is...> ) {
+			std::size_t write_impl2( Writable &writable, T const &value, std::index_sequence<Is...> ) {
 				using dto = generic_dto<T>;
 				using out_t = concepts::writable_output_trait<Writable>;
 				auto result = std::size_t{ 0 };
@@ -123,7 +123,7 @@ namespace daw::burp {
 					using current_type = DAW_TYPEOF( v );
 					if constexpr( has_generic_dto_v<current_type> or
 					              concepts::is_container_v<current_type> ) {
-						result += daw::burp::write( writable, v );
+						result += write_impl1( writable, v );
 					} else {
 						static_assert( concepts::container_detect::is_fundamental_type_v<current_type>,
 						               "Type is not a fundamental type or is not mapped" );
@@ -159,44 +159,51 @@ namespace daw::burp {
 					}
 				}
 			}( );
+
+			template<typename Writable, typename T>
+			std::size_t write_impl1( Writable &writable, T const &value ) {
+				static_assert( concepts::is_writable_output_type_v<Writable>,
+				               "Writable does not fulfill the writable output concept." );
+				using out_t = concepts::writable_output_trait<Writable>;
+				if constexpr( burp_impl::has_generic_dto_v<T> ) {
+					using dto = generic_dto<T>;
+					return burp_impl::write_impl2( writable,
+					                               value,
+					                               std::make_index_sequence<dto::member_count( )>{ } );
+				} else if constexpr( burp_impl::is_contiguous_array_of_fundamental_like_types_v<T> ) {
+					// String like types
+					auto const sz = concepts::container_size( value );
+					out_t::write( writable,
+					              daw::span( reinterpret_cast<char const *>( &sz ), sizeof( sz ) ) );
+					auto const count = std::size( value );
+					out_t::write(
+					  writable,
+					  daw::span( reinterpret_cast<char const *>( std::data( value ) ),
+					             count * concepts::container_detect::container_value_type<T>::size ) );
+					return sizeof( sz ) + ( sizeof( T ) * count );
+				} else if constexpr( concepts::is_container_v<T> ) {
+					auto const sz = concepts::container_size( value );
+					out_t::write( writable,
+					              daw::span( reinterpret_cast<char const *>( &sz ), sizeof( sz ) ) );
+					auto result = sizeof( sz );
+					using value_type = typename T::value_type;
+					for( auto const &element : value ) {
+						result += write_impl1( writable, element );
+					}
+					return result;
+				} else {
+					static_assert( concepts::container_detect::is_fundamental_type_v<T>,
+					               "Could not find mapping for type and it isn't a fundamental type" );
+					out_t::write( writable,
+					              daw::span( reinterpret_cast<char const *>( &value ), sizeof( T ) ) );
+					return sizeof( T );
+				}
+			}
 		} // namespace burp_impl
 
 		template<typename Writable, typename T>
-		std::size_t write( Writable &writable, T const &value ) {
-			static_assert( concepts::is_writable_output_type_v<Writable>,
-			               "Writable does not fulfill the writable output concept." );
-			using out_t = concepts::writable_output_trait<Writable>;
-			if constexpr( burp_impl::has_generic_dto_v<T> ) {
-				using dto = generic_dto<T>;
-				return burp_impl::write_impl( writable,
-				                              value,
-				                              std::make_index_sequence<dto::member_count( )>{ } );
-			} else if constexpr( burp_impl::is_contiguous_array_of_fundamental_like_types_v<T> ) {
-				// String like types
-				auto const sz = concepts::container_size( value );
-				out_t::write( writable, daw::span( reinterpret_cast<char const *>( &sz ), sizeof( sz ) ) );
-				auto const count = std::size( value );
-				out_t::write(
-				  writable,
-				  daw::span( reinterpret_cast<char const *>( std::data( value ) ),
-				             count * concepts::container_detect::container_value_type<T>::size ) );
-				return sizeof( sz ) + ( sizeof( T ) * count );
-			} else if constexpr( concepts::is_container_v<T> ) {
-				auto const sz = concepts::container_size( value );
-				out_t::write( writable, daw::span( reinterpret_cast<char const *>( &sz ), sizeof( sz ) ) );
-				auto result = sizeof( sz );
-				using value_type = typename T::value_type;
-				for( auto const &element : value ) {
-					result += burp::write( writable, element );
-				}
-				return result;
-			} else {
-				static_assert( concepts::container_detect::is_fundamental_type_v<T>,
-				               "Could not find mapping for type and it isn't a fundamental type" );
-				out_t::write( writable,
-				              daw::span( reinterpret_cast<char const *>( &value ), sizeof( T ) ) );
-				return sizeof( T );
-			}
+		std::size_t write( Writable writable, T const &value ) {
+			return burp_impl::write_impl1( writable, value );
 		}
 	} // namespace DAW_BURP_VER
 } // namespace daw::burp

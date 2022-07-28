@@ -210,12 +210,12 @@ namespace daw::burp {
 					static_assert( sizeof...( ContiguousBytes ) > 0 );
 					daw_burp_ensure( out.size( ) >= ( std::size( blobs ) + ... ),
 					                 daw::burp::ErrorReason::OutputError );
-					constexpr auto writer = []( T &s, auto sv ) {
-						if( sv.empty( ) ) {
+					constexpr auto writer = []( T &s, auto blob ) {
+						if( blob.empty( ) ) {
 							return 0;
 						}
-						(void)writeable_output_details::copy_to_buffer( s.data( ), sv );
-						s = s.subspan( sv.size( ) );
+						(void)writeable_output_details::copy_to_buffer( s.data( ), blob );
+						s = s.subspan( blob.size( ) );
 						return 0;
 					};
 					(void)( writer( out, blobs ) | ... );
