@@ -66,6 +66,19 @@ static void do_bench( daw::span<char> v, T const &data ) {
 	                                       } );
 }
 
+template<typename T>
+static void do_bench( std::vector<char> &v, T const &data ) {
+	(void)daw::burp::benchmark::benchmark( NUM_RUNS,
+	                                       sizeof( typename T::value_type ) * data.size( ),
+	                                       "Writing to buff",
+	                                       [&] {
+		                                       daw::do_not_optimize( data );
+		                                       daw::do_not_optimize( data.data( ) );
+		                                       v.clear( );
+		                                       daw::burp::write( v, data );
+	                                       } );
+}
+
 int main( ) {
 	auto gb_data = get_numbers( 1000ULL * 1000ULL * 1000ULL );
 	auto vec = std::vector<char>{ };
