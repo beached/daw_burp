@@ -68,6 +68,10 @@ static void do_bench( daw::span<char> v, T const &data ) {
 
 int main( ) {
 	auto gb_data = get_numbers( 1000ULL * 1000ULL * 1000ULL );
+	auto vec = std::vector<char>{ };
+	std::cout << "Buffer\n";
+	do_bench( daw::span<char>( vec.data( ), vec.size( ) ), gb_data );
+	std::cout << "File via fd\n";
 	auto tmp = daw::unique_temp_file{ };
 	auto fname = tmp.native( );
 	std::cout << "tmp file: " << fname << '\n';
@@ -76,6 +80,8 @@ int main( ) {
 	::close( fd.value );
 	auto buff =
 	  daw::filesystem::memory_mapped_file_t<char>( fname, daw::filesystem::open_mode::read_write );
+
+	std::cout << "File via memory map\n";
 	do_bench( daw::span<char>( buff.data( ), buff.size( ) ), gb_data );
 	std::cout << "done\n";
 }
