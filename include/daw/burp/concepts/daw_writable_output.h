@@ -35,15 +35,18 @@ namespace daw::burp {
 				template<typename T, typename B>
 				constexpr T *copy_to_buffer( T *buff, daw::span<B const> source ) {
 #if defined( DAW_IS_CONSTANT_EVALUATED )
-					if( not DAW_IS_CONSTANT_EVALUATED( ) ) {
-						memcpy( buff, source.data( ), source.size( ) );
+					if( DAW_IS_CONSTANT_EVALUATED( ) ) {
 #endif
-
-#if defined( DAW_IS_CONSTANT_EVALUATED )
-					} else {
 						daw::algorithm::transform_n( source.data( ), buff, source.size( ), []( auto c ) {
 							return static_cast<T>( c );
 						} );
+#if defined( DAW_IS_CONSTANT_EVALUATED )
+					} else {
+#if not defined( __clang )
+						memcpy( buff, source.data( ), source.size( ) );
+#else
+						__builtin_memcpy_inline( buff, source.data( ), source.size( ) );
+#endif
 					}
 #endif
 					return buff + source.size( );
@@ -86,7 +89,7 @@ namespace daw::burp {
 					static_assert( sizeof...( ContiguousBytes ) > 0 );
 					daw_burp_ensure( ptr, daw::burp::ErrorReason::OutputError );
 					constexpr auto writer = []( T *&p, auto sv ) {
-						if( sv.empty( ) ) {
+						if( DAW_UNLIKELY( sv.empty( ) ) ) {
 							return 0;
 						}
 						p = writeable_output_details::copy_to_buffer( p, sv );
