@@ -86,10 +86,11 @@ int main( ) {
 	auto gb_data = get_numbers( 1000ULL * 1000ULL * 1000ULL );
 #endif
 	auto vec = std::vector<char>{ };
-	vec.resize( gb_data.size( ) * sizeof( typename DAW_TYPEOF( gb_data )::value_type ) +
-	            sizeof( size_t ) );
+	auto size_needed = daw::burp::calc_size( gb_data );
+	vec.resize( size_needed );
 	std::cout << "Buffer\n";
-	do_bench( daw::span<char>( vec.data( ), vec.size( ) ), gb_data );
+	do_bench( daw::span<char>( vec ), gb_data );
+	/*
 	std::cout << "File via fd\n";
 	auto tmp = daw::unique_temp_file{ };
 	auto fname = tmp.native( );
@@ -102,5 +103,5 @@ int main( ) {
 
 	std::cout << "File via memory map\n";
 	do_bench( daw::span<char>( buff.data( ), buff.size( ) ), gb_data );
-	std::cout << "done\n";
+	 */
 }

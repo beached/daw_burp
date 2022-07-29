@@ -72,6 +72,9 @@ namespace daw::burp {
 			template<typename Writable, typename T>
 			std::size_t write_impl1( Writable &write_out, T const &value );
 
+			template<typename Visitor, typename T>
+			void visit_impl1( Visitor &&visitor, T const &value );
+
 			template<typename T>
 			using has_generic_dto_test = decltype( generic_dto<T>{ } );
 
@@ -139,6 +142,30 @@ namespace daw::burp {
 				return result;
 			}
 
+			template<typename Visitor, typename T, std::size_t... Is>
+			void visit_impl2( Visitor &&visitor, T const &value, std::index_sequence<Is...> ) {
+				using dto = generic_dto<T>;
+				auto const tp = dto::to_tuple( value );
+				if constexpr( is_class_of_fundamental_types_without_padding_v<T> ) {
+					visitor( daw::span( reinterpret_cast<char const *>( &value ), sizeof( T ) ) );
+					return;
+				}
+				auto const do_visit = [&]( auto const &v ) {
+					using current_type = DAW_TYPEOF( v );
+					if constexpr( has_generic_dto_v<current_type> or
+					              concepts::is_container_v<current_type> ) {
+						visit_impl1( visitor, v );
+					} else {
+						static_assert( concepts::container_detect::is_fundamental_type_v<current_type>,
+						               "Type is not a fundamental type or is not mapped" );
+						visitor( daw::span( reinterpret_cast<char const *>( &v ), sizeof( current_type ) ) );
+					}
+					return true;
+				};
+				bool expander[]{ do_visit( std::get<Is>( tp ) )... };
+				(void)expander;
+			}
+
 			template<typename Tp, std::size_t... Is>
 			DAW_CONSTEVAL std::size_t total_member_size( std::index_sequence<Is...> ) {
 				return ( sizeof( std::tuple_element_t<Is, Tp> ) + ... );
@@ -199,11 +226,49 @@ namespace daw::burp {
 					return sizeof( T );
 				}
 			}
+
+			template<typename Visitor, typename T>
+			void visit_impl1( Visitor &&visitor, T const &value ) {
+				if constexpr( burp_impl::has_generic_dto_v<T> ) {
+					using dto = generic_dto<T>;
+					burp_impl::visit_impl2( visitor,
+					                        value,
+					                        std::make_index_sequence<dto::member_count( )>{ } );
+				} else if constexpr( burp_impl::is_contiguous_array_of_fundamental_like_types_v<T> ) {
+					// String like types
+					auto const sz = concepts::container_size( value );
+					visitor( daw::span( reinterpret_cast<char const *>( &sz ), sizeof( sz ) ) );
+					auto const count = std::size( value );
+					visitor( daw::span( reinterpret_cast<char const *>( std::data( value ) ),
+					                    count * concepts::container_detect::container_value_type<T>::size ) );
+				} else if constexpr( concepts::is_container_v<T> ) {
+					auto const sz = concepts::container_size( value );
+					visitor( daw::span( reinterpret_cast<char const *>( &sz ), sizeof( sz ) ) );
+					auto result = sizeof( sz );
+					using value_type = typename T::value_type;
+					for( auto const &element : value ) {
+						result += visit_impl1( visitor, element );
+					}
+				} else {
+					static_assert( concepts::container_detect::is_fundamental_type_v<T>,
+					               "Could not find mapping for type and it isn't a fundamental type" );
+					visitor( daw::span( reinterpret_cast<char const *>( &value ), sizeof( T ) ) );
+				}
+			}
 		} // namespace burp_impl
 
 		template<typename Writable, typename T>
 		std::size_t write( Writable writable, T const &value ) {
 			return burp_impl::write_impl1( writable, value );
+		}
+
+		template<typename T>
+		std::size_t calc_size( T const &value ) {
+			std::size_t result = 0;
+			burp_impl::visit_impl1(
+			  [&]( auto const &...blobs ) { result += ( std::size( blobs ) + ... ); },
+			  value );
+			return result;
 		}
 	} // namespace DAW_BURP_VER
 } // namespace daw::burp
