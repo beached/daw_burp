@@ -90,7 +90,7 @@ int main( ) {
 	vec.resize( size_needed );
 	std::cout << "Buffer\n";
 	do_bench( daw::span<char>( vec ), gb_data );
-	/*
+
 	std::cout << "File via fd\n";
 	auto tmp = daw::unique_temp_file{ };
 	auto fname = tmp.native( );
@@ -103,5 +103,4 @@ int main( ) {
 
 	std::cout << "File via memory map\n";
 	do_bench( daw::span<char>( buff.data( ), buff.size( ) ), gb_data );
-	 */
 }

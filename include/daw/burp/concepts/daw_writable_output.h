@@ -42,11 +42,7 @@ namespace daw::burp {
 						} );
 #if defined( DAW_IS_CONSTANT_EVALUATED )
 					} else {
-#if not defined( __clang )
 						memcpy( buff, source.data( ), source.size( ) );
-#else
-						__builtin_memcpy_inline( buff, source.data( ), source.size( ) );
-#endif
 					}
 #endif
 					return buff + source.size( );
