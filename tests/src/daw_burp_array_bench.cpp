@@ -80,10 +80,12 @@ static void do_bench( std::vector<char> &v, T const &data ) {
 }
 
 int main( ) {
-	auto gb_data = get_numbers( 1000ULL * 1000ULL * 1000ULL );
+	auto gb_data = get_numbers( 1000ULL * 1000ULL * 16ULL );
 	auto vec = std::vector<char>{ };
+	vec.resize( gb_data.size( ) * sizeof( typename DAW_TYPEOF( gb_data )::value_type ) +
+	            sizeof( size_t ) );
 	std::cout << "Buffer\n";
-	do_bench( vec, gb_data );
+	do_bench( daw::span<char>( vec.data( ), vec.size( ) ), gb_data );
 	std::cout << "File via fd\n";
 	auto tmp = daw::unique_temp_file{ };
 	auto fname = tmp.native( );

@@ -208,17 +208,16 @@ namespace daw::burp {
 				template<typename... ContiguousBytes>
 				static constexpr void write( T &out, ContiguousBytes... blobs ) {
 					static_assert( sizeof...( ContiguousBytes ) > 0 );
-					daw_burp_ensure( out.size( ) >= ( std::size( blobs ) + ... ),
-					                 daw::burp::ErrorReason::OutputError );
-					constexpr auto writer = []( T &s, auto blob ) {
-						if( blob.empty( ) ) {
-							return 0;
-						}
-						(void)writeable_output_details::copy_to_buffer( s.data( ), blob );
-						s = s.subspan( blob.size( ) );
+					auto const total_size = ( std::size( blobs ) + ... );
+					daw_burp_ensure( out.size( ) >= total_size, daw::burp::ErrorReason::OutputError );
+					auto *ptr = out.data( );
+					auto const writer = [&]( auto blob ) {
+						(void)writeable_output_details::copy_to_buffer( ptr, blob );
+						ptr += std::size( blob );
 						return 0;
 					};
-					(void)( writer( out, blobs ) | ... );
+					(void)( writer( blobs ) | ... );
+					out = out.subspan( ptr - out.data( ) );
 				}
 
 				static constexpr void put( T &out, char c ) {
