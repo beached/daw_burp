@@ -35,14 +35,15 @@ namespace daw::burp {
 				template<typename T, typename B>
 				constexpr T *copy_to_buffer( T *buff, daw::span<B const> source ) {
 #if defined( DAW_IS_CONSTANT_EVALUATED )
-					if( DAW_IS_CONSTANT_EVALUATED( ) ) {
+					if( not DAW_IS_CONSTANT_EVALUATED( ) ) {
+						memcpy( buff, source.data( ), source.size( ) );
 #endif
+
+#if defined( DAW_IS_CONSTANT_EVALUATED )
+					} else {
 						daw::algorithm::transform_n( source.data( ), buff, source.size( ), []( auto c ) {
 							return static_cast<T>( c );
 						} );
-#if defined( DAW_IS_CONSTANT_EVALUATED )
-					} else {
-						memcpy( buff, source.data( ), source.size( ) );
 					}
 #endif
 					return buff + source.size( );
