@@ -257,11 +257,6 @@ namespace daw::burp {
 			}
 		} // namespace burp_impl
 
-		template<typename Writable, typename T>
-		std::size_t write( Writable writable, T const &value ) {
-			return burp_impl::write_impl1( writable, value );
-		}
-
 		template<typename T>
 		std::size_t calc_size( T const &value ) {
 			std::size_t result = 0;
@@ -270,5 +265,18 @@ namespace daw::burp {
 			  value );
 			return result;
 		}
+
+		template<typename Writable, typename T>
+		std::size_t write( Writable writable, T const &value ) {
+			static_assert( concepts::is_writable_output_type_v<Writable> );
+			using out_t = concepts::writable_output_trait<Writable>;
+			auto const size_needed = calc_size( value );
+			daw_burp_ensure( size_needed <= out_t::capacity( writable ),
+			                 daw::burp::ErrorReason::OutputError );
+			burp_impl::visit_impl1( [&]( auto const &...blobs ) { out_t::write( writable, blobs... ); },
+			                        value );
+			return size_needed;
+		}
+
 	} // namespace DAW_BURP_VER
 } // namespace daw::burp

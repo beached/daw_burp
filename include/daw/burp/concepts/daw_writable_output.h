@@ -76,6 +76,10 @@ namespace daw::burp {
 			  std::enable_if_t<( writeable_output_details::is_char_sized_character_v<T> or
 			                     writeable_output_details::is_byte_type_v<T> )>> : std::true_type {
 
+				static constexpr std::size_t capacity( T const * ) noexcept {
+					return std::numeric_limits<std::size_t>::max( );
+				}
+
 				template<typename... ContiguousBytes>
 				static constexpr void write( T *&ptr, ContiguousBytes... blobs ) {
 					static_assert( sizeof...( ContiguousBytes ) > 0 );
@@ -102,6 +106,10 @@ namespace daw::burp {
 			struct writable_output_trait<T, std::enable_if_t<std::is_base_of_v<std::ostream, T>>> :
 			  std::true_type {
 
+				static constexpr std::size_t capacity( std::ostream const & ) noexcept {
+					return std::numeric_limits<std::size_t>::max( );
+				}
+
 				template<typename... ContiguousBytes>
 				static inline void write( std::ostream &os, ContiguousBytes... blobs ) {
 					static_assert( sizeof...( ContiguousBytes ) > 0 );
@@ -125,6 +133,10 @@ namespace daw::burp {
 			/// @brief Specialization for FILE * streams
 			template<>
 			struct writable_output_trait<std::FILE *> : std::true_type {
+
+				static constexpr std::size_t capacity( std::FILE const * ) noexcept {
+					return std::numeric_limits<std::size_t>::max( );
+				}
 
 				template<typename... ContiguousBytes>
 				static inline void write( std::FILE *fp, ContiguousBytes... blobs ) {
@@ -157,6 +169,10 @@ namespace daw::burp {
 			template<>
 			struct writable_output_trait<fd_t> : std::true_type {
 				static constexpr std::size_t max_chunk_size = 32'768ULL;
+
+				static constexpr std::size_t capacity( fd_t const & ) noexcept {
+					return std::numeric_limits<std::size_t>::max( );
+				}
 
 				template<typename... ContiguousBytes>
 				static inline void write( fd_t fd, ContiguousBytes... blobs ) {
@@ -205,11 +221,14 @@ namespace daw::burp {
 			  std::true_type {
 				using CharT = typename T::value_type;
 
+				static constexpr std::size_t capacity( T const &s ) noexcept {
+					return std::size( s );
+				}
+
 				template<typename... ContiguousBytes>
 				static constexpr void write( T &out, ContiguousBytes... blobs ) {
 					static_assert( sizeof...( ContiguousBytes ) > 0 );
 					auto const total_size = ( std::size( blobs ) + ... );
-					daw_burp_ensure( out.size( ) >= total_size, daw::burp::ErrorReason::OutputError );
 					auto *ptr = out.data( );
 					auto const writer = [&]( auto blob ) {
 						(void)writeable_output_details::copy_to_buffer( ptr, blob );
@@ -257,6 +276,10 @@ namespace daw::burp {
 			    typename Container::value_type>>> : std::true_type {
 				using CharT = typename Container::value_type;
 
+				static constexpr std::size_t capacity( Container const & ) noexcept {
+					return std::numeric_limits<std::size_t>::max( );
+				}
+
 				template<typename... ContiguousBytes>
 				static inline void write( Container &out, ContiguousBytes... blobs ) {
 					static_assert( sizeof...( ContiguousBytes ) > 0 );
@@ -296,6 +319,10 @@ namespace daw::burp {
 			  T,
 			  std::enable_if_t<writeable_output_details::is_writable_output_iterator_v<T>>> :
 			  std::true_type {
+
+				static constexpr std::size_t capacity( T const & ) noexcept {
+					return std::numeric_limits<std::size_t>::max( );
+				}
 
 				template<typename... ContiguousBytes>
 				static constexpr void write( T &it, ContiguousBytes... blobs ) {
