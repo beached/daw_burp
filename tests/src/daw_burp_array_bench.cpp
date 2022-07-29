@@ -80,7 +80,11 @@ static void do_bench( std::vector<char> &v, T const &data ) {
 }
 
 int main( ) {
+#if not defined( NDEBUG )
 	auto gb_data = get_numbers( 1000ULL * 1000ULL * 16ULL );
+#else
+	auto gb_data = get_numbers( 1000ULL * 1000ULL * 1000ULL );
+#endif
 	auto vec = std::vector<char>{ };
 	vec.resize( gb_data.size( ) * sizeof( typename DAW_TYPEOF( gb_data )::value_type ) +
 	            sizeof( size_t ) );
